@@ -30,3 +30,12 @@ Iso14443_4aError
         instance->iso14443_3a_listener, instance->tx_buffer);
     return iso14443_4a_process_error(error);
 }
+
+Iso14443_4aError
+    iso14443_4a_listener_send_data(Iso14443_4aListener* instance, const BitBuffer* data) {
+    bit_buffer_reset(instance->tx_buffer);
+    bit_buffer_append_bytes(instance->tx_buffer, bit_buffer_get_data(data), bit_buffer_get_size_bytes(data));
+    const Iso14443_3aError error = iso14443_3a_listener_send_standard_frame(
+        instance->iso14443_3a_listener, instance->tx_buffer);
+    return iso14443_4a_process_error(error);
+}

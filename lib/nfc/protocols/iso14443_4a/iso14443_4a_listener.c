@@ -61,6 +61,27 @@ static NfcCommand iso14443_4a_listener_run(NfcGenericEvent event, void* context)
     BitBuffer* rx_buffer = iso14443_3a_event->data->buffer;
     NfcCommand command = NfcCommandContinue;
 
+    BitBuffer* hw_info = bit_buffer_alloc(9);
+    // this should be 2 defined bytes +  vendor ID (1 byte) + type (1 bytes) + sub type (1 byte) + major version (1 byte) + minor version (1 byte) + storage size (1 byte) + protocol type (1 byte) 
+    //we dont really care about the version's informations.
+    bit_buffer_append_bytes(hw_info, (uint8_t[]){0x02, 0xAF, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01}, 9);
+
+    BitBuffer* sw_info = bit_buffer_alloc(9);
+    //same
+    bit_buffer_append_bytes(sw_info, (uint8_t[]){0x03, 0xAF, 0x01, 0x01, 0x01, 0x01, 0x00, 0x01, 0x01}, 9);
+
+    BitBuffer* batch_info = bit_buffer_alloc(16);
+    bit_buffer_append_bytes(batch_info, (uint8_t[]){0x02, 0x00}, 2);
+    bit_buffer_append_bytes(batch_info, instance->data->iso14443_3a_data->uid, instance->data->iso14443_3a_data->uid_len);
+    // this should be  batch number (5 bytes) + production week + production year, but since we don't care about those, we can just put some random values there.
+    //same don't care about batch number, production year and week
+    bit_buffer_append_bytes(batch_info, (uint8_t[]){0x01, 0x01, 0x01, 0x01, 0x01, 0x01, 0x01}, 7);
+
+
+    BitBuffer* not_found_response = bit_buffer_alloc(3);
+    bit_buffer_append_bytes(not_found_response, (uint8_t[]){0x02, 0x6A, 0x82}, 3);
+ 
+
     if(iso14443_3a_event->type == Iso14443_3aListenerEventTypeReceivedStandardFrame) {
         if(instance->state == Iso14443_4aListenerStateIdle) {
             if(bit_buffer_get_size_bytes(rx_buffer) == 2 &&
@@ -69,6 +90,21 @@ static NfcCommand iso14443_4a_listener_run(NfcGenericEvent event, void* context)
                    Iso14443_4aErrorNone) {
                     instance->state = Iso14443_4aListenerStateActive;
                 }
+            } 
+        } else if(bit_buffer_get_size_bytes(rx_buffer) == 2 && bit_buffer_get_byte(rx_buffer, 0) == 0x02 && bit_buffer_get_byte(rx_buffer, 1) == 0x60) {
+            if(iso14443_4a_listener_send_data(instance, hw_info) ==
+                Iso14443_4aErrorNone) {
+                instance->state = Iso14443_4aListenerStateActive;
+            }
+        } else if(bit_buffer_get_size_bytes(rx_buffer) == 2 && bit_buffer_get_byte(rx_buffer, 0) == 0x03 && bit_buffer_get_byte(rx_buffer, 1) == 0xAF   ) {
+            if(iso14443_4a_listener_send_data(instance, sw_info) ==
+                Iso14443_4aErrorNone) {
+                instance->state = Iso14443_4aListenerStateActive;
+            }
+        }   else if(bit_buffer_get_size_bytes(rx_buffer) == 2 && bit_buffer_get_byte(rx_buffer, 0) == 0x02 && bit_buffer_get_byte(rx_buffer, 1) == 0xAF   ) {
+            if(iso14443_4a_listener_send_data(instance, batch_info) ==
+                Iso14443_4aErrorNone) {
+                instance->state = Iso14443_4aListenerStateActive;
             }
         } else {
             instance->iso14443_4a_event.type = Iso14443_4aListenerEventTypeReceivedData;
