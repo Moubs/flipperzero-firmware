@@ -80,7 +80,9 @@ static NfcCommand iso14443_4a_listener_run(NfcGenericEvent event, void* context)
 
     BitBuffer* not_found_response = bit_buffer_alloc(3);
     bit_buffer_append_bytes(not_found_response, (uint8_t[]){0x02, 0x6A, 0x82}, 3);
- 
+
+    BitBuffer* no_app_id = bit_buffer_alloc(2);
+    bit_buffer_append_bytes(no_app_id, (uint8_t[]){0x02, 0xA0}, 2);
 
     if(iso14443_3a_event->type == Iso14443_3aListenerEventTypeReceivedStandardFrame) {
         if(instance->state == Iso14443_4aListenerStateIdle) {
@@ -106,7 +108,13 @@ static NfcCommand iso14443_4a_listener_run(NfcGenericEvent event, void* context)
                 Iso14443_4aErrorNone) {
                 instance->state = Iso14443_4aListenerStateActive;
             }
-        } else {
+        } else if (bit_buffer_get_size_bytes(rx_buffer) == 5 && bit_buffer_get_byte(rx_buffer, 0) == 0x2 && bit_buffer_get_byte(rx_buffer, 1) == 0x5A   ) {
+            if(iso14443_4a_listener_send_data(instance, no_app_id) ==
+                Iso14443_4aErrorNone) {
+                instance->state = Iso14443_4aListenerStateActive;
+            }
+        }
+        else {
             instance->iso14443_4a_event.type = Iso14443_4aListenerEventTypeReceivedData;
             instance->iso14443_4a_event.data->buffer = rx_buffer;
 
@@ -128,7 +136,11 @@ static NfcCommand iso14443_4a_listener_run(NfcGenericEvent event, void* context)
             command = instance->callback(instance->generic_event, instance->context);
         }
     }
-
+    bit_buffer_free(hw_info);
+    bit_buffer_free(sw_info);
+    bit_buffer_free(batch_info);
+    bit_buffer_free(not_found_response);
+    bit_buffer_free(no_app_id);
     return command;
 }
 
